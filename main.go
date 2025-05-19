@@ -2,103 +2,181 @@ package main
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"net"
+	"os"
+
+	//	"net"
+	//	"os"
 	"strings"
 )
 
-const ID uint16 = 22
 type Header struct {
-	id 		uint16 
-	flags uint16
-	qdCount uint16
-	anCount uint16
-	nsCount uint16
-	arCount uint16
+	ID uint16 
+	QR bool 
+	OPCODE uint8 // 0-15
+	AA bool
+	TC bool
+	RD bool
+	RA bool
+	Z uint8
+	RCOUNT uint8
+	QDCOUNT uint16
+	ANCOUNT uint16
+	NSCOUNT uint16
+	ARCOUNT uint16
 }
 
 type Question struct {
-	qName []byte
+	qName string
 	qType uint16
 	qClass uint16
 }
 
-func processString(s string) ([]byte, error) {
+func (q Question) NameToBytes() ([]byte, error) {
 	var byteArr []byte
-	substrs := strings.Split(s, ".");
+	substrs := strings.Split(q.qName, ".");
 
 	for _, str := range substrs {
-		l := len(str)
+		l := uint64(len(str))
 
-		byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(l))
-
+		byteArr = binary.AppendUvarint(byteArr, l)
 		byteArr, _ = binary.Append(byteArr, binary.BigEndian, []byte(str))
 	}
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(0))
+	byteArr = binary.AppendUvarint(byteArr, 0)
 	return byteArr, nil
 }
 
-func createQuestion(s string) (Question, error) {
-	byteArr, err := processString(s);
-	if (err != nil) {
-		return Question{}, errors.New("process string error")
-	}
-
-	return Question{
-		qName: byteArr, 
-		qType: 1,
-		qClass : 1,
-	}, nil
-}
-
-func createHeader() Header {
-	return Header{
-		id : ID,
-		flags : 256,
-		qdCount: 1,
-	}
-}
-
-func (h Header) convertBytes() []byte {
+func (h Header) ConvertToBytes() []byte {
 	var byteArr []byte
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.id))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.flags))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.qdCount))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.anCount))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.nsCount))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(h.arCount))
+	byteArr = binary.BigEndian.AppendUint16(byteArr, h.ID)
+
+	// first 8 bits of flags
+	var firstByte uint8 = 0
+
+	// QR bit
+	if h.QR == true{
+		firstByte |= (1 << 7)
+	}
+
+	// OPCODE - 4 bits
+	firstByte |= (h.OPCODE << 3)
+
+	// AA bit
+	if h.AA == true {
+		firstByte |= (1 << 2)
+	}
+
+	// TC bit
+	if h.TC == true {
+		firstByte |= (1 << 1)
+	}
+
+	// RD bit
+	if h.RD == true {
+		firstByte |= 1 
+	}
+
+	var secondByte uint8 = 0
+
+	// RA bit
+	if h.RA == true {
+		secondByte |= (1 << 7)
+	}
+
+	// Z field - 3 bits - reserved
+
+	// RCODE - 4 bits
+	secondByte |= h.RCOUNT
+
+	var flags uint16 = 0
+	flags |= (uint16(firstByte) << 8)
+	flags |= uint16(secondByte)
+
+	// Append flags
+	byteArr = binary.BigEndian.AppendUint16(byteArr, flags)
+
+	// Append count of question, answers, authority and additional
+	byteArr = binary.BigEndian.AppendUint16(byteArr, h.QDCOUNT)
+	byteArr = binary.BigEndian.AppendUint16(byteArr, h.ANCOUNT)
+	byteArr = binary.BigEndian.AppendUint16(byteArr, h.NSCOUNT)
+	byteArr = binary.BigEndian.AppendUint16(byteArr, h.ARCOUNT)
 
 	return byteArr
 }
 
-func (q Question) convertBytes() []byte {
+func (q Question) ConvertToBytes() []byte {
+	qName,_ := q.NameToBytes()
+
 	var byteArr []byte
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, q.qName)
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(q.qType))
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, byte(q.qClass))
+	byteArr, _ = binary.Append(byteArr, binary.BigEndian, qName)
+	byteArr = binary.BigEndian.AppendUint16(byteArr, q.qType)
+	byteArr = binary.BigEndian.AppendUint16(byteArr, q.qClass)
+	return byteArr
+}
+
+func (m Message) ConvertToBytes() []byte{
+	var byteArr []byte
+	byteArr, _ = binary.Append(byteArr, binary.BigEndian, m.h.ConvertToBytes())
+	byteArr, _ = binary.Append(byteArr, binary.BigEndian, m.q.ConvertToBytes())
 
 	return byteArr
 }
 
-type message struct {
+type Message struct {
 	h Header
 	q Question
 }
 
+
 func main() {
-	question, _ := createQuestion("dns.google.com")
-	header := createHeader();
-
-	msg := message{
-		header,
-		question,
+	header := Header{
+		ID : 22,
+		RD : true,
+		QDCOUNT: 1,
 	}
 
-	var byteArr []byte
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, msg.h.convertBytes())
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, msg.q.convertBytes())
-
-	for _, v := range byteArr {
-		fmt.Printf("%x ", v)
+	question := Question {
+		qName : "dns.google.com",
+		qType : 1,
+		qClass : 1,
 	}
+
+	message := Message {
+		h : header,
+		q : question,
+	}
+
+	msgBytes := message.ConvertToBytes()
+
+	udpAddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
+	if err != nil {
+		fmt.Println("ResolveUDPAddr error", err.Error())
+		os.Exit(1)
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		fmt.Println("Listen failed: ", err.Error())
+		os.Exit(1)
+	}
+
+	defer conn.Close()
+
+	_, err = conn.Write(msgBytes)
+
+	if err != nil {
+		fmt.Println("Write failed: ", err.Error())
+		os.Exit(1)
+	}
+
+	recvBuf := make([]byte, 1024)
+	_, err = conn.Read(recvBuf)
+
+	if err != nil {
+		fmt.Println("Read failed: ", err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Println(recvBuf)
 }
