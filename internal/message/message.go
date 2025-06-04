@@ -28,7 +28,7 @@ type Question struct {
 }
 
 type ResourceRecord struct {
-	Name uint16 
+	Name string 
 	Type uint16
 	Class uint16
 	TTL uint32

@@ -1,9 +1,13 @@
 package parse
 
 import (
-	"github.com/SamridhBhau/dnsResolver/internal/message"
 	"encoding/binary"
+	"strings"
+
+	"github.com/SamridhBhau/dnsResolver/internal/message"
 )
+
+const MaxDomainLength = 255
 
 // isSet checks if bit at pos is set or not. pos start from 0
 func isSet(b byte, pos uint) bool{
@@ -48,33 +52,40 @@ func ParseHeader(msg []byte) message.Header {
 	return header
 }
 
-func DecodeName(name []byte) string {
-	res := make([]byte, len(name))
-	copy(res, name)
+func DecodeName(msg []byte, start uint) string {
+	i := start
+	var labels []string
 
-	i := 0
-	for i < len(res){
-		n := int(res[i])
-		if n == 0 {
+	for i - start <= MaxDomainLength{
+		// Check bits for pointer form
+		if isSet(msg[i], 0) && isSet(msg[i], 1){
+			var offset uint16 = ((uint16(msg[i]) & 0x3F) << 8) | uint16(msg[i+1])
+			start = uint(offset)
+			i = start
+		}
+
+		n := uint(msg[i])
+
+		if n == 0{
 			break
 		}
 
-		if i != 0 {
-			res[i] = byte('.')
-		}
-		
+		labelStart := i + 1
+		labelEnd := i + n
+		label := string(msg[labelStart: labelEnd+1])
+
+		labels = append(labels, label)
+
 		i += (n + 1)
-	}
+	} 
 
-	str := string(res[1:i])
-
-	return str 
+	return strings.Join(labels, ".")
 }
 
-func ParseQuestion(msg []byte) message.Question{
-	name := DecodeName(msg)
+func ParseQuestion(msg []byte) (message.Question, uint){
+	name := DecodeName(msg, 0)
 
-	i := len(name)+2
+	i := uint(len(name)+2)
 	qtype := binary.BigEndian.Uint16(msg[i:i+2])
 	i += 2
 	qclass := binary.BigEndian.Uint16(msg[i:i+2])
@@ -83,19 +94,49 @@ func ParseQuestion(msg []byte) message.Question{
 		QName : name,
 		QType : qtype,
 		QClass : qclass,
-	}
+	}, i + 1
+}
+
+func ParseAnswer(msg []byte, start uint) (message.ResourceRecord, uint){
+	name := DecodeName(msg, 0)
+
+	i := uint(len(name)+2)
+	AType := binary.BigEndian.Uint16(msg[i:i+2])
+	i += 2
+	class := binary.BigEndian.Uint16(msg[i:i+2])
+	i += 2
+	ttl := binary.BigEndian.Uint32(msg[i:i+4])
+	i += 4
+	rdlength := binary.BigEndian.Uint16(msg[i:i+2])
+	i += 2
+
+	rdata := make([]byte, rdlength)
+	copy(rdata, msg[i : i+uint(rdlength)+1])
+
+	return message.ResourceRecord{
+		Name : name,
+		Type : AType, 
+		Class : class,
+		TTL : ttl,
+		RDLength: rdlength,
+		RData: rdata,
+	}, i + 1
 }
 
 func ParseResponse(msg []byte) message.Message{
-	response := message.Message{}
-	response.H = ParseHeader(msg)
-	response.Q = ParseQuestion(msg[12:])
+	header := ParseHeader(msg)
+	question, bytesUsed := ParseQuestion(msg[12:])
+	ans, bytesUsed := ParseAnswer(msg, 12+bytesUsed)
+
 	//TODO: 
 	/*
-  response.ans = ParseAnswer(message)
 	response.auth = ParseAuthorities(message)
 	response.add = ParseAdditional(message)
   */
 
-	return response
+	return message.Message{
+		H : header,
+		Q : question,
+		ANS: ans,
+	}
 }
