@@ -2,32 +2,31 @@ package main
 
 import (
 	"fmt"
+	"github.com/SamridhBhau/dnsResolver/internal/message"
+	"github.com/SamridhBhau/dnsResolver/internal/parse"
 	"net"
 	"os"
-	"github.com/SamridhBhau/dnsResolver/internal/message"
 )
 
 func main() {
 	header := message.Header{
-		ID : 22,
-		RD : true,
+		ID:      22,
+		RD:      true,
 		QDCOUNT: 1,
 	}
 
-	question := message.Question {
-		QName : "dns.google.com",
-		QType : 1,
-		QClass : 1,
+	question := message.Question{
+		QName:  "example.com",
+		QType:  1,
+		QClass: 1,
 	}
 
-	message := message.Message {
-		H : header,
-		Q : question,
+	message := message.Message{
+		H: header,
+		Q: question,
 	}
-
 
 	msgBytes := message.Marshal()
-	fmt.Println(msgBytes)
 
 	udpAddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
 	if err != nil {
@@ -58,5 +57,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(recvBuf)
+	resMsg := parse.ParseResponse(recvBuf)
+	resMsg.Display()
+
 }
