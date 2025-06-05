@@ -8,6 +8,8 @@ import (
 	"os"
 )
 
+const RootNameServer = "198.41.0.4:53"
+
 func main() {
 	header := message.Header{
 		ID:      22,
@@ -21,14 +23,14 @@ func main() {
 		QClass: 1,
 	}
 
-	message := message.Message{
+	msg := message.Message{
 		H: header,
 		Q: question,
 	}
 
-	msgBytes := message.Marshal()
+	msgBytes := msg.Marshal()
 
-	udpAddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
+	udpAddr, err := net.ResolveUDPAddr("udp", RootNameServer)
 	if err != nil {
 		fmt.Println("ResolveUDPAddr error", err.Error())
 		os.Exit(1)
@@ -49,7 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	recvBuf := make([]byte, 1024)
+	recvBuf := make([]byte, message.UDPMAXSIZE)
 	_, err = conn.Read(recvBuf)
 
 	if err != nil {
@@ -59,5 +61,4 @@ func main() {
 
 	resMsg := parse.ParseResponse(recvBuf)
 	resMsg.Display()
-
 }

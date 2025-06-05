@@ -3,9 +3,10 @@ package message
 import (
 	"encoding/binary"
 	"fmt"
-	"strings"
-	"strconv"
+	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
+
+const UDPMAXSIZE = 512
 
 type Header struct {
 	ID      uint16
@@ -35,7 +36,7 @@ type ResourceRecord struct {
 	Class    uint16
 	TTL      uint32
 	RDLength uint16
-	RData    []byte
+	RData    string
 }
 
 type Message struct {
@@ -44,20 +45,6 @@ type Message struct {
 	ANS  []ResourceRecord
 	AUTH []ResourceRecord
 	ADD  []ResourceRecord
-}
-
-func EncodeName(QName string) ([]byte, error) {
-	var byteArr []byte
-	substrs := strings.Split(QName, ".")
-
-	for _, str := range substrs {
-		l := uint64(len(str))
-
-		byteArr = binary.AppendUvarint(byteArr, l)
-		byteArr, _ = binary.Append(byteArr, binary.BigEndian, []byte(str))
-	}
-	byteArr = binary.AppendUvarint(byteArr, 0)
-	return byteArr, nil
 }
 
 func (h Header) Marshal() []byte {
@@ -119,7 +106,7 @@ func (h Header) Marshal() []byte {
 }
 
 func (q Question) Marshal() []byte {
-	qName, _ := EncodeName(q.QName)
+	qName, _ := utils.EncodeName(q.QName)
 
 	var byteArr []byte
 	byteArr, _ = binary.Append(byteArr, binary.BigEndian, qName)
@@ -164,12 +151,7 @@ func (RR ResourceRecord) Display() {
 	fmt.Printf("CLASS: %d\n", RR.Class)
 	fmt.Printf("TTL: %d\n", RR.TTL)
 	fmt.Printf("RDLENGTH: %d\n", RR.RDLength)
-
-	var strs []string
-	for _, v := range RR.RData {
-		strs = append(strs, strconv.Itoa(int(v)))
-	}
-	fmt.Printf("RDATA: %s\n", strings.Join(strs, "."))
+	fmt.Printf("RDATA: %s\n", RR.RData)
 }
 
 func (m Message) Display() {

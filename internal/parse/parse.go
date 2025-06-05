@@ -2,22 +2,12 @@ package parse
 
 import (
 	"encoding/binary"
-	"github.com/SamridhBhau/dnsResolver/internal/message"
+	"strconv"
 	"strings"
+
+	"github.com/SamridhBhau/dnsResolver/internal/message"
+	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
-
-const MaxDomainLength = 255
-
-// isSet checks if bit at pos is set or not. pos start from 0
-func isSet(b byte, pos uint) bool {
-	var mask byte = (1 << (7 - pos))
-
-	if (b & mask) != 0 {
-		return true
-	}
-	return false
-
-}
 
 func ParseHeader(msg []byte) message.Header {
 	// ID
@@ -25,15 +15,15 @@ func ParseHeader(msg []byte) message.Header {
 
 	// Flags
 	var firstByte byte = msg[2]
-	qr := isSet(firstByte, 0)
+	qr := utils.IsSet(firstByte, 0)
 	// four bits
 	var opcode uint8 = (firstByte >> 3) & 0x0f
-	aa := isSet(firstByte, 5)
-	tc := isSet(firstByte, 6)
-	rd := isSet(firstByte, 7)
+	aa := utils.IsSet(firstByte, 5)
+	tc := utils.IsSet(firstByte, 6)
+	rd := utils.IsSet(firstByte, 7)
 
 	var secondByte = msg[3]
-	ra := isSet(secondByte, 0)
+	ra := utils.IsSet(secondByte, 0)
 	// 3 bits
 	z := (secondByte >> 4) & 0x07
 	// 4 bits
@@ -62,48 +52,8 @@ func ParseHeader(msg []byte) message.Header {
 	}
 }
 
-func DecodeName(msg []byte, start uint) (string, uint) {
-	i := start
-	var labels []string
-	var jump bool
-	var bytesUsed uint
-
-	for i-start <= MaxDomainLength {
-		// Check bits for pointer form
-		if isSet(msg[i], 0) && isSet(msg[i], 1) {
-			var offset uint16 = ((uint16(msg[i]) & 0x3F) << 8) | uint16(msg[i+1])
-			start = uint(offset)
-			i = start
-			jump = true
-			bytesUsed += 2
-		}
-
-		n := uint(msg[i])
-		if n == 0 {
-			break
-		}
-
-		labelStart := i + 1
-		labelEnd := i + n
-		label := string(msg[labelStart : labelEnd+1])
-		if jump == false {
-			bytesUsed += uint(len(label)) + 1
-		}
-		labels = append(labels, label)
-
-		i += (n + 1)
-	}
-
-	// Add last length octet if not jumped
-	if jump == false {
-		bytesUsed++
-	}
-
-	return strings.Join(labels, "."), bytesUsed
-}
-
 func ParseQuestion(msg []byte, start uint) (message.Question, uint) {
-	name, bytesUsed := DecodeName(msg, start)
+	name, bytesUsed := utils.DecodeName(msg, start)
 
 	i := start + bytesUsed
 	qtype := binary.BigEndian.Uint16(msg[i : i+2])
@@ -117,8 +67,25 @@ func ParseQuestion(msg []byte, start uint) (message.Question, uint) {
 	}, i + 2 - start
 }
 
+func ParseRdata(msg []byte, start uint, msgType uint16, rdlength uint16) string {
+	switch msgType {
+	case 1:
+		var strs []string
+		for i := uint(0); i < uint(rdlength); i++ {
+			n := int(msg[start+i])
+			strs = append(strs, strconv.Itoa(n))
+		}
+		return strings.Join(strs, ".")
+	case 2:
+		name, _ := utils.DecodeName(msg, start)
+		return name
+	default:
+		return ""
+	}
+}
+
 func ParseRR(msg []byte, start uint) (message.ResourceRecord, uint) {
-	name, bytesUsed := DecodeName(msg, start)
+	name, bytesUsed := utils.DecodeName(msg, start)
 	i := start + bytesUsed
 
 	AType := binary.BigEndian.Uint16(msg[i : i+2])
@@ -130,8 +97,7 @@ func ParseRR(msg []byte, start uint) (message.ResourceRecord, uint) {
 	rdlength := binary.BigEndian.Uint16(msg[i : i+2])
 	i += 2
 
-	rdata := make([]byte, rdlength)
-	copy(rdata, msg[i:i+uint(rdlength)+1])
+	rdata := ParseRdata(msg, i, AType, rdlength)
 	i += uint(rdlength)
 
 	return message.ResourceRecord{
