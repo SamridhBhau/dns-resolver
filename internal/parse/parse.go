@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
-
 	"github.com/SamridhBhau/dnsResolver/internal/message"
 	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
@@ -59,12 +58,13 @@ func ParseQuestion(msg []byte, start uint) (message.Question, uint) {
 	qtype := binary.BigEndian.Uint16(msg[i : i+2])
 	i += 2
 	qclass := binary.BigEndian.Uint16(msg[i : i+2])
+	i += 2
 
 	return message.Question{
 		QName:  name,
 		QType:  qtype,
 		QClass: qclass,
-	}, i + 2 - start
+	}, i - start
 }
 
 func ParseRdata(msg []byte, start uint, msgType uint16, rdlength uint16) string {
