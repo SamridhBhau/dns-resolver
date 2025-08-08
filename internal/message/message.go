@@ -3,6 +3,7 @@ package message
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
 
@@ -48,11 +49,10 @@ type Message struct {
 }
 
 func (h Header) Marshal() []byte {
-	var byteArr []byte
-	byteArr = binary.BigEndian.AppendUint16(byteArr, h.ID)
+	byteArr := binary.BigEndian.AppendUint16(make([]byte, 0), h.ID)
 
 	// first 8 bits of flags
-	var firstByte uint8 = 0
+	var firstByte uint8
 
 	// QR bit
 	if h.QR == true {
@@ -77,7 +77,7 @@ func (h Header) Marshal() []byte {
 		firstByte |= 1
 	}
 
-	var secondByte uint8 = 0
+	var secondByte uint8
 
 	// RA bit
 	if h.RA == true {
@@ -108,8 +108,7 @@ func (h Header) Marshal() []byte {
 func (q Question) Marshal() []byte {
 	qName, _ := utils.EncodeName(q.QName)
 
-	var byteArr []byte
-	byteArr, _ = binary.Append(byteArr, binary.BigEndian, qName)
+	byteArr, _ := binary.Append(nil, binary.BigEndian, qName)
 	byteArr = binary.BigEndian.AppendUint16(byteArr, q.QType)
 	byteArr = binary.BigEndian.AppendUint16(byteArr, q.QClass)
 	return byteArr

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/SamridhBhau/dnsResolver/internal/message"
-	"github.com/SamridhBhau/dnsResolver/internal/parse"
 	"net"
 	"os"
+
+	"github.com/SamridhBhau/dnsResolver/internal/message"
+	"github.com/SamridhBhau/dnsResolver/internal/parse"
 )
 
 const RootNameServer = "198.41.0.4:53"
@@ -18,7 +19,7 @@ func main() {
 	}
 
 	question := message.Question{
-		QName:  "example.com",
+		QName:  "go.dev",
 		QType:  1,
 		QClass: 1,
 	}

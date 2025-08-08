@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
+
 	"github.com/SamridhBhau/dnsResolver/internal/message"
 	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
