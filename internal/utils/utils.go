@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const MaxDomainNameLength = 255
+const MaxDomainNameLength = 255 * 2
 
 func EncodeName(QName string) ([]byte, error) {
 	var byteArr []byte
@@ -36,9 +36,9 @@ func DecodeName(msg []byte, start uint) (string, uint) {
 	i := start
 	var labels []string
 	var jump bool
-	var bytesUsed uint
+	var bytesUsed, bytesProcessed uint
 
-	for i-start <= MaxDomainNameLength {
+	for bytesProcessed <= MaxDomainNameLength {
 		// Check bits for pointer form
 		if IsSet(msg[i], 0) && IsSet(msg[i], 1) {
 			var offset uint16 = ((uint16(msg[i]) & 0x3F) << 8) | uint16(msg[i+1])
@@ -47,6 +47,7 @@ func DecodeName(msg []byte, start uint) (string, uint) {
 			if jump == false {
 				bytesUsed += 2
 			}
+			bytesProcessed += 2
 			jump = true
 		}
 
@@ -61,6 +62,7 @@ func DecodeName(msg []byte, start uint) (string, uint) {
 		if jump == false {
 			bytesUsed += uint(len(label)) + 1
 		}
+		bytesProcessed += uint(len(label)) + 1
 		labels = append(labels, label)
 
 		i += (n + 1)
