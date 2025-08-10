@@ -24,12 +24,11 @@ func (m Message) Resolve(address string) (string, error) {
 	}
 	if recvMsg.H.NSCOUNT > 0 {
 		var found bool
-		// Search for Type 2 Record
 		nameServerIP := ""
 		for _, ns := range recvMsg.AUTH {
 			if ns.Type == 2 {
 				for _, ad := range recvMsg.ADD {
-					if ad.Name == ns.RData {
+					if ad.Type == 1 && ad.Name == ns.RData {
 						found = true
 						nameServerIP = ad.RData
 						break
