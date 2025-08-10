@@ -3,6 +3,7 @@ package message
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 
 	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
@@ -17,8 +18,8 @@ type Header struct {
 	TC      bool
 	RD      bool
 	RA      bool
-	Z       uint8
-	RCODE   uint8
+	Z       uint8 // 3 bits used
+	RCODE   uint8 // 4 bits used
 	QDCOUNT uint16
 	ANCOUNT uint16
 	NSCOUNT uint16
@@ -89,7 +90,7 @@ func (h Header) Marshal() []byte {
 	// RCODE - 4 bits
 	secondByte |= h.RCODE
 
-	var flags uint16 = 0
+	var flags uint16
 	flags |= (uint16(firstByte) << 8)
 	flags |= uint16(secondByte)
 
@@ -120,6 +121,42 @@ func (m Message) Marshal() []byte {
 	byteArr, _ = binary.Append(byteArr, binary.BigEndian, m.Q.Marshal())
 
 	return byteArr
+}
+
+// SendRequest sends a dns request to a dns server and returns the response as a slice of bytes
+func (m Message) SendRequest(address string) ([]byte, error) {
+	msgBytes := m.Marshal()
+
+	udpAddr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		fmt.Println("ResolveUDPAddr error", err.Error())
+		return nil, err
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		fmt.Println("Listen failed: ", err.Error())
+		return nil, err
+	}
+
+	defer conn.Close()
+
+	_, err = conn.Write(msgBytes)
+
+	if err != nil {
+		fmt.Println("Write failed: ", err.Error())
+		return nil, err
+	}
+
+	recvBuf := make([]byte, UDPMAXSIZE)
+	_, err = conn.Read(recvBuf)
+
+	if err != nil {
+		fmt.Println("Read failed: ", err.Error())
+		return nil, err
+	}
+
+	return recvBuf, nil
 }
 
 func (h Header) Display() {
