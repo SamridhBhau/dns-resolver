@@ -16,7 +16,7 @@ func main() {
 	}
 
 	question := message.Question{
-		QName:  "news.ycombinator.com",
+		QName:  "go.dev",
 		QType:  1,
 		QClass: 1,
 	}
