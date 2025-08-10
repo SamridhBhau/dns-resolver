@@ -1,15 +1,14 @@
-package parse
+package message
 
 import (
 	"encoding/binary"
 	"strconv"
 	"strings"
 
-	"github.com/SamridhBhau/dnsResolver/internal/message"
 	"github.com/SamridhBhau/dnsResolver/internal/utils"
 )
 
-func ParseHeader(msg []byte) message.Header {
+func ParseHeader(msg []byte) Header {
 	// ID
 	id := binary.BigEndian.Uint16(msg[:2])
 
@@ -35,7 +34,7 @@ func ParseHeader(msg []byte) message.Header {
 	nscount := binary.BigEndian.Uint16(msg[8:10])
 	arcount := binary.BigEndian.Uint16(msg[10:12])
 
-	return message.Header{
+	return Header{
 		ID:      id,
 		QR:      qr,
 		OPCODE:  opcode,
@@ -52,7 +51,7 @@ func ParseHeader(msg []byte) message.Header {
 	}
 }
 
-func ParseQuestion(msg []byte, start uint) (message.Question, uint) {
+func ParseQuestion(msg []byte, start uint) (Question, uint) {
 	name, bytesUsed := utils.DecodeName(msg, start)
 
 	i := start + bytesUsed
@@ -61,7 +60,7 @@ func ParseQuestion(msg []byte, start uint) (message.Question, uint) {
 	qclass := binary.BigEndian.Uint16(msg[i : i+2])
 	i += 2
 
-	return message.Question{
+	return Question{
 		QName:  name,
 		QType:  qtype,
 		QClass: qclass,
@@ -85,7 +84,7 @@ func ParseRdata(msg []byte, start uint, msgType uint16, rdlength uint16) string 
 	}
 }
 
-func ParseRR(msg []byte, start uint) (message.ResourceRecord, uint) {
+func ParseRR(msg []byte, start uint) (ResourceRecord, uint) {
 	name, bytesUsed := utils.DecodeName(msg, start)
 	i := start + bytesUsed
 
@@ -101,7 +100,7 @@ func ParseRR(msg []byte, start uint) (message.ResourceRecord, uint) {
 	rdata := ParseRdata(msg, i, AType, rdlength)
 	i += uint(rdlength)
 
-	return message.ResourceRecord{
+	return ResourceRecord{
 		Name:     name,
 		Type:     AType,
 		Class:    class,
@@ -111,13 +110,13 @@ func ParseRR(msg []byte, start uint) (message.ResourceRecord, uint) {
 	}, i - start
 }
 
-func ParseResponse(msg []byte) message.Message {
+func ParseResponse(msg []byte) Message {
 	header := ParseHeader(msg)
 	var totalBytes uint = 12
 	question, bytesUsed := ParseQuestion(msg, totalBytes)
 	totalBytes += bytesUsed
 
-	var ans []message.ResourceRecord
+	var ans []ResourceRecord
 	for i := uint16(0); i < header.ANCOUNT; i++ {
 		rr, bytesUsed := ParseRR(msg, totalBytes)
 		totalBytes += bytesUsed
@@ -125,7 +124,7 @@ func ParseResponse(msg []byte) message.Message {
 		ans = append(ans, rr)
 	}
 
-	var auth []message.ResourceRecord
+	var auth []ResourceRecord
 	for i := uint16(0); i < header.NSCOUNT; i++ {
 		rr, bytesUsed := ParseRR(msg, totalBytes)
 		totalBytes += bytesUsed
@@ -133,7 +132,7 @@ func ParseResponse(msg []byte) message.Message {
 		auth = append(auth, rr)
 	}
 
-	var add []message.ResourceRecord
+	var add []ResourceRecord
 	for i := uint16(0); i < header.ARCOUNT; i++ {
 		rr, bytesUsed := ParseRR(msg, totalBytes)
 		totalBytes += bytesUsed
@@ -141,7 +140,7 @@ func ParseResponse(msg []byte) message.Message {
 		add = append(add, rr)
 	}
 
-	return message.Message{
+	return Message{
 		H:    header,
 		Q:    question,
 		ANS:  ans,
