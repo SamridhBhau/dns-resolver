@@ -21,7 +21,7 @@ func EncodeName(QName string) ([]byte, error) {
 	return byteArr, nil
 }
 
-// isSet checks if bit at pos is set or not. pos start from 0
+// IsSet checks if bit at pos is set or not. pos start from 0
 func IsSet(b byte, pos uint) bool {
 	var mask byte = (1 << (7 - pos))
 
